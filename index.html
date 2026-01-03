@@ -5,22 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>海陸空大作戰：核平世界版</title>
     <style>
-        /* 禁止整個頁面的預設觸控行為，防止縮放和滾動 */
+        /* 禁止選取與長按的最高級別設定 */
+        * {
+            -webkit-touch-callout: none; /* iOS 禁止長按 */
+            -webkit-user-select: none;   /* Chrome/Safari 禁止選取 */
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent; /* 移除點擊高亮 */
+        }
+
         body { margin: 0; overflow: hidden; background: #000; font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; touch-action: none; color: white; }
         canvas { display: block; background: linear-gradient(#1a2a6c, #b21f1f, #fdbb2d); }
         
-        /* UI 樣式 */
         #ui { position: absolute; top: 10px; left: 10px; pointer-events: none; width: 100%; z-index: 5; }
         .hp-bar-container { width: 100px; height: 10px; background: #333; border: 2px solid #fff; margin-bottom: 5px; border-radius: 5px; overflow: hidden; }
         .hp-fill { height: 100%; width: 100%; background: lime; transition: width 0.2s; }
         .boss-hp-container { width: 80%; height: 15px; background: #222; border: 2px solid gold; margin: 5px auto; position: relative; }
         .boss-hp-fill { height: 100%; width: 100%; background: linear-gradient(to right, #ff0000, #ff8c00); }
         
-        /* 核彈按鈕樣式 */
+        /* 核彈按鈕 */
         .nuke-btn { 
             position: absolute; 
-            bottom: 750px; /* 位置上移，方便拇指按壓 */
-            width: 70px;   /* 按鈕加大 */
+            bottom: 150px; 
+            width: 70px;
             height: 70px; 
             background: rgba(255, 69, 0, 0.7); 
             border: 3px solid gold; 
@@ -33,33 +42,48 @@
             box-shadow: 0 0 15px #ff4500; 
             pointer-events: auto; 
             transition: transform 0.1s;
-
-            /* ★★★ 防止誤觸 Google 搜尋的關鍵代碼 ★★★ */
-            -webkit-user-select: none; /* Chrome/Safari/Opera */
-            -moz-user-select: none;    /* Firefox */
-            -ms-user-select: none;     /* IE/Edge */
-            user-select: none;         /* 標準語法 */
-            -webkit-touch-callout: none; /* iOS Safari 禁止長按選單 */
         }
-        
-        /* 點擊時的縮放效果 */
-        .nuke-btn:active { transform: scale(0.9); }
+        .nuke-btn:active { transform: scale(0.9); background: rgba(255, 255, 0, 0.8); }
 
         #nuke-p1 { left: 20px; }
         #nuke-p2 { right: 20px; }
-        
-        /* 核彈數量標記 */
         .nuke-count { position: absolute; top: -5px; right: -5px; background: gold; color: black; border-radius: 50%; width: 25px; height: 25px; font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
 
-        /* 遊戲畫面特殊效果 (閃光) */
         #flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; z-index: 1000; }
         
-        /* 彈窗樣式 */
-        #overlay, #award { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 500; text-align: center; }
-        button { padding: 15px 30px; font-size: 18px; cursor: pointer; background: gold; border: none; border-radius: 20px; font-weight: bold; margin: 10px; }
+        /* 彈窗樣式調整：讓兩個按鈕分很開 */
+        #overlay, #award { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 500; text-align: center; }
+        
+        /* 專用按鈕樣式 */
+        .btn-continue {
+            padding: 25px 50px; /* 超大按鈕 */
+            font-size: 24px;
+            background: #32CD32; /* 鮮綠色 */
+            color: white;
+            border: 4px solid white;
+            border-radius: 30px;
+            font-weight: bold;
+            box-shadow: 0 0 20px #32CD32;
+            margin-bottom: 20px; /* 留點空間 */
+            cursor: pointer;
+        }
+        
+        .btn-restart {
+            position: absolute; /* 絕對定位到最下面 */
+            bottom: 30px;
+            padding: 10px 20px;
+            font-size: 14px;
+            background: #444; /* 暗灰色 */
+            color: #aaa;
+            border: 1px solid #666;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        h1 { margin-bottom: 30px; text-shadow: 0 0 10px red; }
     </style>
 </head>
-<body>
+<body oncontextmenu="return false;">
 
 <div id="flash"></div>
 
@@ -78,20 +102,27 @@
 <div id="nuke-p2" class="nuke-btn" onclick="useNuke()">☢️</div>
 
 <div id="overlay">
-    <h1>戰機被擊落！</h1>
-    <button onclick="continueGame()">立即接關 (原地復活)</button>
-    <button style="background:#555; color:white;" onclick="location.reload()">重新開始</button>
+    <h1 style="color: red; font-size: 50px;">💥 戰機墜毀 💥</h1>
+    
+    <button class="btn-continue" onclick="continueGame()">🚀 立即接關 (原地復活)</button>
+    
+    <button class="btn-restart" onclick="location.reload()">↺ 放棄掙扎，重新開始</button>
 </div>
 
 <div id="award">
     <h1 style="color:gold; font-size:40px;">🏆 凱旋歸來 🏆</h1>
     <div id="award-text" style="font-size:18px; margin:20px; line-height:1.6;"></div>
-    <button onclick="location.reload()">受封為傳奇英雄</button>
+    <button class="btn-continue" onclick="location.reload()">受封為傳奇英雄 (重來)</button>
 </div>
 
 <canvas id="gameCanvas"></canvas>
 
 <script>
+// ★★★ 強制禁止瀏覽器選單 (解決點擊變搜尋的問題) ★★★
+window.addEventListener('contextmenu', function (e) { 
+    e.preventDefault(); 
+}, { passive: false });
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
@@ -123,7 +154,6 @@ class Fighter {
         if (this.hp <= 0) return;
         ctx.fillStyle = this.buffTimer > 0 ? "white" : this.color;
         ctx.beginPath();
-        // 畫戰機
         ctx.moveTo(this.x + 25, this.y);
         ctx.lineTo(this.x, this.y + 40); 
         ctx.lineTo(this.x + 50, this.y + 40);
@@ -173,7 +203,6 @@ class Boss {
     shoot() {
         let count = 3 + currentLevel;
         for(let i = -Math.floor(count/2); i <= Math.floor(count/2); i++) {
-            // Boss 子彈向上發射
             enemyBullets.push({x: this.x, y: this.y, dx: i * 2, dy: -4 - currentLevel*0.4});
         }
     }
@@ -204,18 +233,15 @@ function useNuke() {
     setTimeout(() => document.getElementById('flash').style.opacity = 0, 200);
     screenShake = 30;
 
-    // 清空敵方子彈並造成 Boss 傷害
     enemyBullets = [];
     boss.hp -= boss.maxHp * 0.2; 
     if (boss.hp < 0) boss.hp = 0;
 }
 
-// 掉落物生成
 setInterval(() => {
     if (!gameOver && !gameWin) items.push(new Item());
 }, 4500);
 
-// 自動射擊
 setInterval(() => {
     if (gameOver || gameWin) return;
     [p1, p2].forEach(p => {
@@ -234,7 +260,6 @@ setInterval(() => {
 function loop() {
     if (gameOver || gameWin) return;
     
-    // 畫面震動
     let offsetX = 0, offsetY = 0;
     if (screenShake > 0) {
         offsetX = Math.random() * screenShake - screenShake/2;
@@ -312,7 +337,6 @@ function showAward() {
     `;
 }
 
-// 觸控控制
 canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
     for (let i = 0; i < e.touches.length; i++) {
