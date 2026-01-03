@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>海陸空大作戰：核平世界版</title>
     <style>
+        /* 禁止整個頁面的預設觸控行為，防止縮放和滾動 */
         body { margin: 0; overflow: hidden; background: #000; font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; touch-action: none; color: white; }
         canvas { display: block; background: linear-gradient(#1a2a6c, #b21f1f, #fdbb2d); }
         
@@ -15,14 +16,11 @@
         .boss-hp-container { width: 80%; height: 15px; background: #222; border: 2px solid gold; margin: 5px auto; position: relative; }
         .boss-hp-fill { height: 100%; width: 100%; background: linear-gradient(to right, #ff0000, #ff8c00); }
         
-        /* 修改處：核彈按鈕位置調整 
-           原 bottom: 20px -> 改為 bottom: 150px 
-           讓按鈕往上移動到手指好按的區域
-        */
+        /* 核彈按鈕樣式 */
         .nuke-btn { 
             position: absolute; 
-            bottom: 150px; /* <--- 這裡改高了 */
-            width: 70px;   /*稍微加大一點點方便點擊*/
+            bottom: 750px; /* 位置上移，方便拇指按壓 */
+            width: 70px;   /* 按鈕加大 */
             height: 70px; 
             background: rgba(255, 69, 0, 0.7); 
             border: 3px solid gold; 
@@ -35,14 +33,25 @@
             box-shadow: 0 0 15px #ff4500; 
             pointer-events: auto; 
             transition: transform 0.1s;
+
+            /* ★★★ 防止誤觸 Google 搜尋的關鍵代碼 ★★★ */
+            -webkit-user-select: none; /* Chrome/Safari/Opera */
+            -moz-user-select: none;    /* Firefox */
+            -ms-user-select: none;     /* IE/Edge */
+            user-select: none;         /* 標準語法 */
+            -webkit-touch-callout: none; /* iOS Safari 禁止長按選單 */
         }
-        .nuke-btn:active { transform: scale(0.9); } /* 增加按下的回饋感 */
+        
+        /* 點擊時的縮放效果 */
+        .nuke-btn:active { transform: scale(0.9); }
 
         #nuke-p1 { left: 20px; }
         #nuke-p2 { right: 20px; }
+        
+        /* 核彈數量標記 */
         .nuke-count { position: absolute; top: -5px; right: -5px; background: gold; color: black; border-radius: 50%; width: 25px; height: 25px; font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
 
-        /* 遊戲畫面特殊效果 */
+        /* 遊戲畫面特殊效果 (閃光) */
         #flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; z-index: 1000; }
         
         /* 彈窗樣式 */
@@ -88,7 +97,6 @@ const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// 關卡難度設定 (保持您之前的要求)
 const levelData = [
     { name: "第一關：深海巨鯊 🦈", emoji: "🦈", hp: 1200, attackRate: 1800 },
     { name: "第二關：荒漠巨蠍 🦂", emoji: "🦂", hp: 2500, attackRate: 1600 },
@@ -115,7 +123,7 @@ class Fighter {
         if (this.hp <= 0) return;
         ctx.fillStyle = this.buffTimer > 0 ? "white" : this.color;
         ctx.beginPath();
-        // 畫戰機 (倒三角型，因為從上方進攻)
+        // 畫戰機
         ctx.moveTo(this.x + 25, this.y);
         ctx.lineTo(this.x, this.y + 40); 
         ctx.lineTo(this.x + 50, this.y + 40);
@@ -165,7 +173,7 @@ class Boss {
     shoot() {
         let count = 3 + currentLevel;
         for(let i = -Math.floor(count/2); i <= Math.floor(count/2); i++) {
-            // Boss 子彈向上發射 (dy 為負)
+            // Boss 子彈向上發射
             enemyBullets.push({x: this.x, y: this.y, dx: i * 2, dy: -4 - currentLevel*0.4});
         }
     }
@@ -196,21 +204,22 @@ function useNuke() {
     setTimeout(() => document.getElementById('flash').style.opacity = 0, 200);
     screenShake = 30;
 
+    // 清空敵方子彈並造成 Boss 傷害
     enemyBullets = [];
     boss.hp -= boss.maxHp * 0.2; 
-    
     if (boss.hp < 0) boss.hp = 0;
 }
 
+// 掉落物生成
 setInterval(() => {
     if (!gameOver && !gameWin) items.push(new Item());
 }, 4500);
 
+// 自動射擊
 setInterval(() => {
     if (gameOver || gameWin) return;
     [p1, p2].forEach(p => {
         if (p.hp > 0) {
-            // 玩家子彈向下發射 (dy 為正)
             if (p.weaponLevel === 3) {
                 bullets.push({x: p.x+25, y: p.y+40, dx: -1.5, dy: 10});
                 bullets.push({x: p.x+25, y: p.y+40, dx: 0, dy: 11});
@@ -225,6 +234,7 @@ setInterval(() => {
 function loop() {
     if (gameOver || gameWin) return;
     
+    // 畫面震動
     let offsetX = 0, offsetY = 0;
     if (screenShake > 0) {
         offsetX = Math.random() * screenShake - screenShake/2;
@@ -302,6 +312,7 @@ function showAward() {
     `;
 }
 
+// 觸控控制
 canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
     for (let i = 0; i < e.touches.length; i++) {
