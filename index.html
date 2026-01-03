@@ -51,7 +51,7 @@
 
         #flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; z-index: 1000; }
         
-        /* 通用彈窗樣式 */
+        /* 彈窗樣式 */
         .modal { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0,0,0,0.9); 
@@ -152,6 +152,7 @@
 <canvas id="gameCanvas"></canvas>
 
 <script>
+// 禁止右鍵與長按選單
 window.addEventListener('contextmenu', function (e) { e.preventDefault(); }, { passive: false });
 
 const canvas = document.getElementById('gameCanvas');
@@ -173,7 +174,7 @@ let gameWin = false;
 let isPaused = false;
 let nukeCount = 3;
 let screenShake = 0;
-let animationId = null; // 用來管理 requestAnimationFrame，防止加速
+let animationId = null; // ★ 關鍵修正：用來管理動畫ID，防止重複加速
 
 let bullets = [], enemyBullets = [], items = [];
 
@@ -182,7 +183,7 @@ class Fighter {
         this.x = x; this.y = y; this.w = 50; this.h = 40;
         this.color = color; this.hp = 100;
         this.weaponLevel = 1; this.buffTimer = 0;
-        this.touchId = null; // 用來記錄哪隻手指在控制
+        this.touchId = null; // 用來綁定手指 ID
     }
     draw() {
         if (this.hp <= 0) return;
@@ -258,7 +259,6 @@ function initLevel() {
     boss = new Boss(config);
     bullets = []; enemyBullets = []; items = [];
     p1.hp = 100; p2.hp = 100;
-    // 重置觸控鎖定
     p1.touchId = null; 
     p2.touchId = null;
 }
@@ -294,10 +294,20 @@ setInterval(() => {
     });
 }, 300);
 
+// ★ 核心修復：啟動遊戲迴圈的函數
+function startGameLoop() {
+    // 1. 如果已經有在跑的迴圈，先強制取消它
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+    }
+    // 2. 啟動新的迴圈
+    loop();
+}
+
 function loop() {
-    // 修正：如果狀態不允許，直接 return，不呼叫 requestAnimationFrame
-    // 這確保了迴圈是真的「停下來」，而不是在空轉
+    // 如果遊戲狀態是停止的，就不請求下一幀，確保迴圈真的「停下」
     if (gameOver || gameWin || isPaused) {
+        animationId = null;
         return; 
     }
     
@@ -366,14 +376,21 @@ function loop() {
 
     [p1, p2].forEach(p => { if(p.buffTimer > 0) { p.buffTimer--; if(p.buffTimer <= 0) p.weaponLevel = 1; } });
 
-    // 只有在遊戲進行中才請求下一幀
+    // 請求下一幀，並將 ID 存起來
     animationId = requestAnimationFrame(loop);
 }
 
+// 切換下一關
 function nextLevel() {
     currentLevel++;
     initLevel(); 
-    loop(); // 重新啟動迴圈
+    startGameLoop(); // 使用安全啟動函數
+}
+
+// 接關
+function continueGame() { 
+    initLevel(); 
+    startGameLoop(); // 使用安全啟動函數
 }
 
 function showAward() {
@@ -389,10 +406,9 @@ function showAward() {
 }
 
 // -----------------------------------------------------------
-// 新的觸控控制邏輯：解除左右限制，允許全螢幕移動
+// 觸控控制邏輯：自動判斷最近的飛機，不限區域
 // -----------------------------------------------------------
 
-// 輔助函數：計算距離
 function getDistance(touch, fighter) {
     return Math.sqrt(Math.pow(touch.clientX - (fighter.x + 25), 2) + Math.pow(touch.clientY - (fighter.y + 20), 2));
 }
@@ -401,12 +417,10 @@ canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     for (let i = 0; i < e.changedTouches.length; i++) {
         let t = e.changedTouches[i];
-        
-        // 分別計算這根手指到兩台飛機的距離
         let dist1 = getDistance(t, p1);
         let dist2 = getDistance(t, p2);
 
-        // 如果飛機還沒被其他手指控制，且這根手指離它最近，就綁定控制權
+        // 如果手指點下去，看離哪台飛機近，就取得該飛機控制權
         if (p1.touchId === null && (dist1 <= dist2 || p2.touchId !== null)) {
             p1.touchId = t.identifier;
             p1.x = t.clientX - 25; 
@@ -423,8 +437,6 @@ canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
     for (let i = 0; i < e.changedTouches.length; i++) {
         let t = e.changedTouches[i];
-        
-        // 檢查這根手指的 ID 是屬於哪台飛機的
         if (t.identifier === p1.touchId) {
             p1.x = t.clientX - 25; 
             p1.y = Math.min(t.clientY - 20, canvas.height); 
@@ -440,19 +452,14 @@ canvas.addEventListener('touchend', (e) => {
     e.preventDefault();
     for (let i = 0; i < e.changedTouches.length; i++) {
         let t = e.changedTouches[i];
-        // 手指離開時，釋放飛機的控制權
         if (t.identifier === p1.touchId) p1.touchId = null;
         if (t.identifier === p2.touchId) p2.touchId = null;
     }
 }, {passive: false});
 
-function continueGame() { 
-    initLevel(); 
-    loop(); // 重新啟動迴圈
-}
-
+// 第一次啟動
 initLevel(); 
-loop();
+startGameLoop();
 </script>
 </body>
 </html>
