@@ -3,26 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>海陸空大作戰 - 進階版</title>
+    <title>海陸空大作戰：終極五關版</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: 'Arial', sans-serif; touch-action: none; }
-        canvas { display: block; background: linear-gradient(#87CEEB 0%, #87CEEB 60%, #4682B4 60%, #00008B 100%); }
-        #ui { position: absolute; top: 10px; left: 10px; color: white; text-shadow: 2px 2px 4px #000; pointer-events: none; font-size: 14px; }
-        #msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: gold; font-size: 24px; text-align: center; display: none; background: rgba(0,0,0,0.8); padding: 30px; border-radius: 15px; border: 2px solid gold; z-index: 10; }
-        .hp-bar { width: 100px; height: 10px; background: #555; display: inline-block; border: 1px solid #fff; }
-        .hp-inner { height: 100%; background: lime; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; touch-action: none; color: white; }
+        canvas { display: block; background: linear-gradient(#1a2a6c, #b21f1f, #fdbb2d); }
+        
+        /* UI 樣式 */
+        #ui { position: absolute; top: 10px; left: 10px; pointer-events: none; width: 100%; }
+        .hp-bar-container { width: 120px; height: 12px; background: #333; border: 2px solid #fff; margin-bottom: 5px; border-radius: 6px; overflow: hidden; }
+        .hp-fill { height: 100%; width: 100%; background: lime; transition: width 0.2s; }
+        .boss-hp-container { width: 80%; height: 20px; background: #222; border: 2px solid gold; margin: 10px auto; position: relative; }
+        .boss-hp-fill { height: 100%; width: 100%; background: linear-gradient(to right, #ff0000, #ff8c00); }
+        
+        /* 彈窗樣式 */
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; text-align: center; }
+        #overlay h1 { color: #ff3e3e; font-size: 40px; margin-bottom: 10px; }
+        button { padding: 15px 40px; font-size: 20px; cursor: pointer; background: gold; border: none; border-radius: 30px; font-weight: bold; margin: 10px; }
+        
+        /* 頒獎典禮樣式 */
+        #award { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #ff00ea, #4c00ff); z-index: 200; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
+        .trophy { font-size: 100px; animation: bounce 1s infinite; }
+        .flattery { font-size: 24px; color: #fff; margin: 20px; line-height: 1.6; animation: slideUp 10s linear; }
+        
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(-100%); } }
+        
+        #refresh-hint { position: absolute; top: 0; width: 100%; text-align: center; font-size: 12px; opacity: 0.5; }
     </style>
 </head>
 <body>
 
+<div id="refresh-hint">↓ 下拉螢幕或點擊 UI 重啟全關卡 ↓</div>
+
 <div id="ui">
-    <div>戰機1: <div class="hp-bar"><div id="p1-hp-bar" class="hp-inner"></div></div> <span id="p1-status"></span></div>
-    <div>戰機2: <div class="hp-bar"><div id="p2-hp-bar" class="hp-inner"></div></div> <span id="p2-status"></span></div>
-    <div style="margin-top:5px;">鯊魚 BOSS: <div class="hp-bar" style="width:150px;"><div id="boss-hp-bar" class="hp-inner" style="background:red;"></div></div></div>
-    <div>擊毀數: <span id="score">0</span></div>
+    <div style="display:flex; gap: 20px;">
+        <div>戰機1 (紅): <div class="hp-bar-container"><div id="p1-hp" class="hp-fill"></div></div></div>
+        <div>戰機2 (藍): <div class="hp-bar-container"><div id="p2-hp" class="hp-fill"></div></div></div>
+    </div>
+    <div style="text-align: center; width: 90%;">
+        <div id="level-name">第一關：深海巨鯊 🦈</div>
+        <div class="boss-hp-container"><div id="boss-hp" class="boss-hp-fill"></div></div>
+    </div>
 </div>
 
-<div id="msg" onclick="location.reload()">遊戲結束<br><span style="font-size:16px">點擊螢幕重新挑戰</span></div>
+<div id="overlay">
+    <h1 id="status-title">任務失敗</h1>
+    <p id="status-desc">別擔心，英雄總有站起來的時候！</p>
+    <button onclick="continueGame()">從本關繼續</button>
+    <button style="background:#555; color:white;" onclick="location.reload()">重新開始</button>
+</div>
+
+<div id="award">
+    <div class="trophy">🏆</div>
+    <h1 style="color:gold; font-size:48px;">天下無雙！</h1>
+    <div class="flattery" id="award-text"></div>
+    <button onclick="location.reload()">功成名就，載譽歸來</button>
+</div>
 
 <canvas id="gameCanvas"></canvas>
 
@@ -32,301 +68,210 @@ const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let gameOver = false;
-let score = 0;
+// 關卡數據
+const levelData = [
+    { name: "第一關：深海巨鯊 🦈", bossEmoji: "🦈", hp: 1000, attack: 2 },
+    { name: "第二關：荒漠巨蠍 🦂", bossEmoji: "🦂", hp: 2000, attack: 3 },
+    { name: "第三關：鋼鐵巨龍 🐉", bossEmoji: "🐉", hp: 3500, attack: 4 },
+    { name: "第四關：外星戰艦 🛸", bossEmoji: "🛸", hp: 5000, attack: 5 },
+    { name: "第五關：終極機甲 🤖", bossEmoji: "🤖", hp: 8000, attack: 7 }
+];
 
-// 遊戲對象陣列
-let bullets = [];
-let enemyBullets = [];
-let items = [];
-let minions = [];
-let tanks = [];
+let currentLevel = 0;
+let gameOver = false;
+let gameWin = false;
 
 // 玩家類別
-class Plane {
-    constructor(x, y, color, id) {
-        this.x = x; this.y = y; this.w = 40; this.h = 30;
-        this.color = color; this.id = id;
-        this.hp = 100; this.maxHp = 100;
-        this.fireRate = 500; // 毫秒
-        this.lastFire = 0;
-        this.weaponType = 'normal'; // normal, triple
-        this.buffTimer = 0;
+class Fighter {
+    constructor(x, y, color) {
+        this.x = x; this.y = y; this.w = 50; this.h = 40;
+        this.color = color; this.hp = 100;
+        this.weapon = 1; // 1:普通, 2:雙發, 3:三發
+        this.buffTime = 0;
     }
     draw() {
         if (this.hp <= 0) return;
-        ctx.fillStyle = this.buffTimer > 0 ? 'white' : this.color;
-        ctx.fillRect(this.x, this.y, this.w, this.h);
-        ctx.fillStyle = 'black';
-        ctx.fillRect(this.x + 10, this.y - 5, 20, 5); // 機艙
-    }
-    update(nx, ny) {
-        if (this.hp <= 0) return;
-        this.x = nx - this.w/2;
-        this.y = ny - this.h/2;
-        if (this.y > canvas.height * 0.55) this.y = canvas.height * 0.55; // 限制飛行高度
-        
-        if (this.buffTimer > 0) {
-            this.buffTimer--;
-            if (this.buffTimer <= 0) {
-                this.weaponType = 'normal';
-                this.fireRate = 500;
-            }
-        }
-    }
-    shoot() {
-        const now = Date.now();
-        if (now - this.lastFire > this.fireRate) {
-            if (this.weaponType === 'triple') {
-                bullets.push(new Bullet(this.x + 20, this.y + 30, 8, -2, 'yellow', 10));
-                bullets.push(new Bullet(this.x + 20, this.y + 30, 8, 0, 'yellow', 10));
-                bullets.push(new Bullet(this.x + 20, this.y + 30, 8, 2, 'yellow', 10));
-            } else {
-                bullets.push(new Bullet(this.x + 20, this.y + 30, 8, 0, 'yellow', 10));
-            }
-            this.lastFire = now;
-        }
+        // 畫一個有金屬質感的戰機
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.moveTo(this.x + 25, this.y); // 機頭
+        ctx.lineTo(this.x, this.y + 40); // 左翼
+        ctx.lineTo(this.x + 50, this.y + 40); // 右翼
+        ctx.closePath();
+        ctx.fill();
+        // 噴射火焰
+        ctx.fillStyle = "orange";
+        ctx.fillRect(this.x + 15, this.y + 40, 20, 10 + Math.random()*10);
     }
 }
 
-// 子彈類別
-class Bullet {
-    constructor(x, y, dy, dx, color, power) {
-        this.x = x; this.y = y; this.dy = dy; this.dx = dx;
-        this.color = color; this.power = power; this.r = 4;
-    }
-    update() { this.y += this.dy; this.x += this.dx; }
-    draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
-        ctx.fillStyle = this.color;
-        ctx.fill();
-    }
-}
+// 基礎對象
+let p1 = new Fighter(canvas.width/4, 100, "#FF3131");
+let p2 = new Fighter(3*canvas.width/4, 100, "#318CE7");
+let bullets = [], enemyBullets = [], items = [], boss = null;
 
 // 魔王類別
 class Boss {
-    constructor() {
-        this.w = 120; this.h = 80;
-        this.x = canvas.width/2 - 60;
-        this.y = canvas.height - 120;
-        this.hp = 1000; this.maxHp = 1000;
-        this.speed = 2;
+    constructor(config) {
+        this.name = config.name;
+        this.emoji = config.bossEmoji;
+        this.maxHp = config.hp;
+        this.hp = config.hp;
+        this.x = canvas.width / 2;
+        this.y = canvas.height - 150;
+        this.w = 100; this.h = 100;
+        this.speed = 2 + currentLevel;
+        this.dir = 1;
         this.lastAttack = 0;
     }
     update() {
-        this.x += this.speed;
-        if (this.x <= 0 || this.x + this.w >= canvas.width) this.speed *= -1;
+        this.x += this.speed * this.dir;
+        if (this.x < 50 || this.x > canvas.width - 50) this.dir *= -1;
         
-        // 魔王攻擊邏輯
-        const now = Date.now();
-        if (now - this.lastAttack > 2000) {
-            this.attack();
-            this.lastAttack = now;
+        if (Date.now() - this.lastAttack > (1000 / levelData[currentLevel].attack)) {
+            this.shoot();
+            this.lastAttack = Date.now();
         }
     }
-    attack() {
-        // 向上發射散彈
-        for(let i=-3; i<=3; i++) {
-            enemyBullets.push(new Bullet(this.x + this.w/2, this.y, -4, i, 'cyan', 15));
+    shoot() {
+        // 散彈模式
+        for(let i=-2; i<=2; i++) {
+            enemyBullets.push({x: this.x, y: this.y, dx: i * 1.5, dy: -4 - currentLevel, color: "cyan"});
         }
     }
     draw() {
-        ctx.fillStyle = '#708090';
-        ctx.beginPath(); // 畫一個像鯊魚的三角形/橢圓
-        ctx.ellipse(this.x + this.w/2, this.y + this.h/2, this.w/2, this.h/2, 0, 0, Math.PI*2);
-        ctx.fill();
-        ctx.fillStyle = 'red'; // 眼睛
-        ctx.fillRect(this.x + 20, this.y + 30, 10, 10);
+        ctx.font = "80px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(this.emoji, this.x, this.y + 40);
     }
 }
 
-// 道具類別
-class Item {
-    constructor(x, y) {
-        this.x = x; this.y = y; this.w = 25; this.h = 25;
-        const types = ['heal', 'fireRate', 'triple'];
-        this.type = types[Math.floor(Math.random() * types.length)];
-        this.dy = 2;
-    }
-    draw() {
-        ctx.fillStyle = this.type === 'heal' ? 'red' : (this.type === 'fireRate' ? 'gold' : 'lime');
-        ctx.fillRect(this.x, this.y, this.w, this.h);
-        ctx.fillStyle = 'white';
-        ctx.font = '12px Arial';
-        ctx.fillText(this.type[0].toUpperCase(), this.x + 8, this.y + 18);
-    }
-    update() { this.y += this.dy; }
+function initLevel() {
+    gameOver = false;
+    document.getElementById('overlay').style.display = 'none';
+    const config = levelData[currentLevel];
+    document.getElementById('level-name').innerText = config.name;
+    boss = new Boss(config);
+    bullets = []; enemyBullets = []; items = [];
+    p1.hp = 100; p2.hp = 100;
 }
 
-// 小兵類別 (小魚)
-class Minion {
-    constructor() {
-        this.x = -30;
-        this.y = canvas.height * 0.6 + Math.random() * 100;
-        this.w = 30; this.h = 20;
-        this.speed = 2 + Math.random() * 3;
-    }
-    update() { this.x += this.speed; }
-    draw() {
-        ctx.fillStyle = 'orange';
-        ctx.fillRect(this.x, this.y, this.w, this.h);
-    }
-}
-
-// 坦克
-class Tank {
-    constructor(x) {
-        this.x = x; this.y = canvas.height * 0.6 - 30;
-        this.w = 50; this.h = 30;
-        this.hp = 40;
-        this.speed = 1;
-    }
-    update() {
-        this.x += this.speed;
-        if (this.x > canvas.width) this.x = -50;
-        if (Math.random() > 0.99) enemyBullets.push(new Bullet(this.x+25, this.y, -5, 0, 'black', 5));
-    }
-    draw() {
-        ctx.fillStyle = '#556B2F';
-        ctx.fillRect(this.x, this.y, this.w, this.h);
-    }
-}
-
-// 初始化
-const p1 = new Plane(50, 100, 'red', 1);
-const p2 = new Plane(150, 100, 'blue', 2);
-const boss = new Boss();
-for(let i=0; i<5; i++) tanks.push(new Tank(Math.random()*canvas.width));
-
-// 監聽
+// 控制
 canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
     for (let i = 0; i < e.touches.length; i++) {
         let t = e.touches[i];
-        if (t.clientX < canvas.width / 2) p1.update(t.clientX, t.clientY);
-        else p2.update(t.clientX, t.clientY);
+        if (t.clientX < canvas.width / 2) {
+            p1.x = t.clientX - 25; p1.y = Math.min(t.clientY - 20, canvas.height/2);
+        } else {
+            p2.x = t.clientX - 25; p2.y = Math.min(t.clientY - 20, canvas.height/2);
+        }
     }
 }, {passive: false});
 
-function spawnMinion() {
-    if (!gameOver && Math.random() > 0.97) minions.push(new Minion());
-}
+// 自動射擊
+setInterval(() => {
+    if (gameOver || gameWin) return;
+    if (p1.hp > 0) bullets.push({x: p1.x+25, y: p1.y+40, dx: 0, dy: 8, color: "yellow"});
+    if (p2.hp > 0) bullets.push({x: p2.x+25, y: p2.y+40, dx: 0, dy: 8, color: "yellow"});
+}, 300);
 
-function checkCollision(a, b) {
-    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
+// 遊戲循環
+function loop() {
+    if (gameOver || gameWin) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-function update() {
-    if (gameOver) return;
-
-    p1.shoot(); p2.shoot();
+    // 更新與畫 Boss
     boss.update();
-    spawnMinion();
+    boss.draw();
 
-    // 處理玩家子彈
-    bullets.forEach((b, bi) => {
-        b.update();
-        if (b.y > canvas.height) bullets.splice(bi, 1);
-        
-        // 中坦克
-        tanks.forEach(t => {
-            if (checkCollision({x:b.x, y:b.y, w:5, h:5}, t)) {
-                t.hp -= b.power;
-                bullets.splice(bi, 1);
-                if (t.hp <= 0) {
-                    score++;
-                    t.hp = 40; t.x = -50; // 重生坦克
-                    if (Math.random() > 0.5) items.push(new Item(t.x, t.y));
-                }
-            }
-        });
+    // 更新玩家
+    p1.draw(); p2.draw();
 
-        // 中小兵
-        minions.forEach((m, mi) => {
-            if (checkCollision({x:b.x, y:b.y, w:5, h:5}, m)) {
-                minions.splice(mi, 1);
-                bullets.splice(bi, 1);
-                score++;
-                if (Math.random() > 0.7) items.push(new Item(m.x, m.y));
-            }
-        });
-
-        // 中魔王
-        if (checkCollision({x:b.x, y:b.y, w:5, h:5}, boss)) {
-            boss.hp -= b.power;
-            bullets.splice(bi, 1);
+    // 更新玩家子彈
+    bullets.forEach((b, i) => {
+        b.y += b.dy;
+        ctx.fillStyle = b.color;
+        ctx.fillRect(b.x-2, b.y, 4, 15);
+        if (Math.abs(b.x - boss.x) < 50 && Math.abs(b.y - boss.y) < 50) {
+            boss.hp -= 20;
+            bullets.splice(i, 1);
         }
     });
 
-    // 處理敵人子彈
-    enemyBullets.forEach((eb, ebi) => {
-        eb.update();
+    // 更新魔王子彈
+    enemyBullets.forEach((eb, i) => {
+        eb.x += eb.dx; eb.y += eb.dy;
+        ctx.fillStyle = eb.color;
+        ctx.beginPath(); ctx.arc(eb.x, eb.y, 6, 0, Math.PI*2); ctx.fill();
+        
         [p1, p2].forEach(p => {
-            if (p.hp > 0 && checkCollision({x:eb.x, y:eb.y, w:5, h:5}, p)) {
-                p.hp -= eb.power;
-                enemyBullets.splice(ebi, 1);
+            if (p.hp > 0 && Math.abs(eb.x - (p.x+25)) < 25 && Math.abs(eb.y - (p.y+20)) < 20) {
+                p.hp -= 10;
+                enemyBullets.splice(i, 1);
             }
         });
-        if (eb.y < 0) enemyBullets.splice(ebi, 1);
+        if (eb.y < 0) enemyBullets.splice(i, 1);
     });
-
-    // 處理道具
-    items.forEach((it, iti) => {
-        it.update();
-        [p1, p2].forEach(p => {
-            if (p.hp > 0 && checkCollision(it, p)) {
-                if (it.type === 'heal') p.hp = Math.min(p.maxHp, p.hp + 30);
-                if (it.type === 'fireRate') { p.fireRate = 200; p.buffTimer = 300; }
-                if (it.type === 'triple') { p.weaponType = 'triple'; p.buffTimer = 300; }
-                items.splice(iti, 1);
-            }
-        });
-    });
-
-    // 處理小兵移動
-    minions.forEach((m, mi) => {
-        m.update();
-        if (m.x > canvas.width) minions.splice(mi, 1);
-    });
-    
-    tanks.forEach(t => t.update());
 
     // UI 更新
-    document.getElementById('p1-hp-bar').style.width = Math.max(0, p1.hp) + '%';
-    document.getElementById('p2-hp-bar').style.width = Math.max(0, p2.hp) + '%';
-    document.getElementById('boss-hp-bar').style.width = (Math.max(0, boss.hp)/10) + '%';
-    document.getElementById('score').innerText = score;
+    document.getElementById('p1-hp').style.width = p1.hp + "%";
+    document.getElementById('p2-hp').style.width = p2.hp + "%";
+    document.getElementById('boss-hp').style.width = (boss.hp / boss.maxHp * 100) + "%";
 
-    if (boss.hp <= 0) { gameOver = true; finish("勝利！大海恢復了和平！"); }
-    if (p1.hp <= 0 && p2.hp <= 0) { gameOver = true; finish("失敗！戰機全數墜毀..."); }
+    // 勝利與失敗判斷
+    if (boss.hp <= 0) {
+        if (currentLevel < 4) {
+            currentLevel++;
+            alert("擊破！準備前往下一個區域！");
+            initLevel();
+        } else {
+            showAward();
+        }
+    }
+
+    if (p1.hp <= 0 && p2.hp <= 0) {
+        gameOver = true;
+        document.getElementById('overlay').style.display = 'flex';
+    }
+
+    requestAnimationFrame(loop);
 }
 
-function finish(txt) {
-    document.getElementById('msg').style.display = 'block';
-    document.getElementById('msg').innerHTML = txt + "<br><span style='font-size:16px'>點擊重新開始</span>";
+function continueGame() {
+    initLevel();
+    loop();
 }
 
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+function showAward() {
+    gameWin = true;
+    const award = document.getElementById('award');
+    const awardText = document.getElementById('award-text');
+    award.style.display = 'flex';
     
-    // 繪製水平線
-    ctx.strokeStyle = 'white';
-    ctx.beginPath(); ctx.moveTo(0, canvas.height * 0.6); ctx.lineTo(canvas.width, canvas.height * 0.6); ctx.stroke();
-
-    p1.draw(); p2.draw();
-    boss.draw();
-    tanks.forEach(t => t.draw());
-    minions.forEach(m => m.draw());
-    bullets.forEach(b => b.draw());
-    enemyBullets.forEach(eb => eb.draw());
-    items.forEach(it => it.draw());
-
-    update();
-    requestAnimationFrame(draw);
+    const lines = [
+        "當今聖上...不，當今最強戰機駕駛員就是你！",
+        "在五關斬六將的浴血奮戰後，你成功平定了海陸空！",
+        "你的操作無懈可擊，簡直是手指上的藝術家。",
+        "連最終機甲都在你的火砲下顫抖求饒。",
+        "此等功績，必將載入遊戲史冊，供後人膜拜。",
+        "恭喜通關！你是真正的傳奇！"
+    ];
+    awardText.innerHTML = lines.join("<br><br>");
 }
 
-draw();
+// 啟動
+initLevel();
+loop();
+
+// 監測下拉重新整理（手機端特殊模擬）
+let startY = 0;
+window.addEventListener('touchstart', e => startY = e.touches[0].pageY);
+window.addEventListener('touchmove', e => {
+    if (window.scrollY === 0 && e.touches[0].pageY - startY > 150) {
+        if(confirm("確定要放棄目前進度，重頭開始嗎？")) location.reload();
+    }
+});
 </script>
 </body>
 </html>
