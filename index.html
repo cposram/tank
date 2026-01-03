@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>海陸空大作戰：核平世界版</title>
     <style>
-        /* 全局禁止選取與長按，確保沈浸體驗 */
+        /* 全局禁止選取與長按 */
         * {
             -webkit-touch-callout: none;
             -webkit-user-select: none;
@@ -25,7 +25,7 @@
         .boss-hp-container { width: 80%; height: 15px; background: #222; border: 2px solid gold; margin: 5px auto; position: relative; }
         .boss-hp-fill { height: 100%; width: 100%; background: linear-gradient(to right, #ff0000, #ff8c00); }
         
-        /* 核彈按鈕 (維持您習慣的位置) */
+        /* 核彈按鈕 */
         .nuke-btn { 
             position: absolute; 
             bottom: 150px; 
@@ -66,7 +66,6 @@
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         
-        /* 按鈕樣式 */
         .btn-continue, .btn-next-level {
             padding: 20px 40px;
             font-size: 24px;
@@ -93,7 +92,6 @@
             cursor: pointer;
         }
 
-        /* 關卡勝利特效文字 */
         .victory-title {
             font-size: 45px;
             color: gold;
@@ -154,7 +152,6 @@
 <canvas id="gameCanvas"></canvas>
 
 <script>
-// 禁止選單
 window.addEventListener('contextmenu', function (e) { e.preventDefault(); }, { passive: false });
 
 const canvas = document.getElementById('gameCanvas');
@@ -173,9 +170,10 @@ const levelData = [
 let currentLevel = 0;
 let gameOver = false;
 let gameWin = false;
-let isPaused = false; // 新增暫停狀態，讓過關畫面出現時遊戲暫停
+let isPaused = false;
 let nukeCount = 3;
 let screenShake = 0;
+let animationId = null; // 用來管理 requestAnimationFrame，防止加速
 
 let bullets = [], enemyBullets = [], items = [];
 
@@ -184,6 +182,7 @@ class Fighter {
         this.x = x; this.y = y; this.w = 50; this.h = 40;
         this.color = color; this.hp = 100;
         this.weaponLevel = 1; this.buffTimer = 0;
+        this.touchId = null; // 用來記錄哪隻手指在控制
     }
     draw() {
         if (this.hp <= 0) return;
@@ -216,8 +215,8 @@ class Item {
     update() { this.y += this.dy; }
 }
 
-let p1 = new Fighter(canvas.width/4, 100, "#FF3131");
-let p2 = new Fighter(3*canvas.width/4, 100, "#318CE7");
+let p1 = new Fighter(canvas.width/4, 500, "#FF3131");
+let p2 = new Fighter(3*canvas.width/4, 500, "#318CE7");
 let boss = null;
 
 class Boss {
@@ -252,36 +251,34 @@ function initLevel() {
     gameOver = false;
     isPaused = false;
     document.getElementById('overlay').style.display = 'none';
-    document.getElementById('level-clear').style.display = 'none'; // 隱藏過關視窗
+    document.getElementById('level-clear').style.display = 'none';
     
     const config = levelData[currentLevel];
     document.getElementById('level-name').innerText = config.name;
     boss = new Boss(config);
     bullets = []; enemyBullets = []; items = [];
     p1.hp = 100; p2.hp = 100;
+    // 重置觸控鎖定
+    p1.touchId = null; 
+    p2.touchId = null;
 }
 
 function useNuke() {
     if (nukeCount <= 0 || gameOver || gameWin || isPaused) return;
-    
     nukeCount--;
     document.getElementById('nuke-val').innerText = nukeCount;
-    
     document.getElementById('flash').style.opacity = 1;
     setTimeout(() => document.getElementById('flash').style.opacity = 0, 200);
     screenShake = 30;
-
     enemyBullets = [];
     boss.hp -= boss.maxHp * 0.2; 
     if (boss.hp < 0) boss.hp = 0;
 }
 
-// 掉落物
 setInterval(() => {
     if (!gameOver && !gameWin && !isPaused) items.push(new Item());
 }, 4500);
 
-// 自動射擊
 setInterval(() => {
     if (gameOver || gameWin || isPaused) return;
     [p1, p2].forEach(p => {
@@ -298,9 +295,10 @@ setInterval(() => {
 }, 300);
 
 function loop() {
+    // 修正：如果狀態不允許，直接 return，不呼叫 requestAnimationFrame
+    // 這確保了迴圈是真的「停下來」，而不是在空轉
     if (gameOver || gameWin || isPaused) {
-        requestAnimationFrame(loop); // 保持循環但不更新邏輯，以便恢復
-        return;
+        return; 
     }
     
     let offsetX = 0, offsetY = 0;
@@ -357,10 +355,8 @@ function loop() {
     document.getElementById('p2-hp').style.width = p2.hp + "%";
     document.getElementById('boss-hp').style.width = (boss.hp / boss.maxHp * 100) + "%";
 
-    // 勝利判斷與邏輯
     if (boss.hp <= 0) {
         if (currentLevel < 4) { 
-            // 這裡不再用 alert，改成顯示「過關視窗」並暫停遊戲
             isPaused = true;
             document.getElementById('level-clear').style.display = 'flex';
         } 
@@ -370,13 +366,14 @@ function loop() {
 
     [p1, p2].forEach(p => { if(p.buffTimer > 0) { p.buffTimer--; if(p.buffTimer <= 0) p.weaponLevel = 1; } });
 
-    requestAnimationFrame(loop);
+    // 只有在遊戲進行中才請求下一幀
+    animationId = requestAnimationFrame(loop);
 }
 
-// 切換下一關的函數
 function nextLevel() {
     currentLevel++;
-    initLevel(); // 這會把 isPaused 設回 false
+    initLevel(); 
+    loop(); // 重新啟動迴圈
 }
 
 function showAward() {
@@ -391,17 +388,71 @@ function showAward() {
     `;
 }
 
-canvas.addEventListener('touchmove', (e) => {
+// -----------------------------------------------------------
+// 新的觸控控制邏輯：解除左右限制，允許全螢幕移動
+// -----------------------------------------------------------
+
+// 輔助函數：計算距離
+function getDistance(touch, fighter) {
+    return Math.sqrt(Math.pow(touch.clientX - (fighter.x + 25), 2) + Math.pow(touch.clientY - (fighter.y + 20), 2));
+}
+
+canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    for (let i = 0; i < e.touches.length; i++) {
-        let t = e.touches[i];
-        if (t.clientX < canvas.width / 2) { p1.x = t.clientX - 25; p1.y = Math.min(t.clientY - 20, canvas.height/2); }
-        else { p2.x = t.clientX - 25; p2.y = Math.min(t.clientY - 20, canvas.height/2); }
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        let t = e.changedTouches[i];
+        
+        // 分別計算這根手指到兩台飛機的距離
+        let dist1 = getDistance(t, p1);
+        let dist2 = getDistance(t, p2);
+
+        // 如果飛機還沒被其他手指控制，且這根手指離它最近，就綁定控制權
+        if (p1.touchId === null && (dist1 <= dist2 || p2.touchId !== null)) {
+            p1.touchId = t.identifier;
+            p1.x = t.clientX - 25; 
+            p1.y = Math.min(t.clientY - 20, canvas.height); 
+        } else if (p2.touchId === null) {
+            p2.touchId = t.identifier;
+            p2.x = t.clientX - 25; 
+            p2.y = Math.min(t.clientY - 20, canvas.height); 
+        }
     }
 }, {passive: false});
 
-function continueGame() { initLevel(); loop(); }
-initLevel(); loop();
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        let t = e.changedTouches[i];
+        
+        // 檢查這根手指的 ID 是屬於哪台飛機的
+        if (t.identifier === p1.touchId) {
+            p1.x = t.clientX - 25; 
+            p1.y = Math.min(t.clientY - 20, canvas.height); 
+        }
+        if (t.identifier === p2.touchId) {
+            p2.x = t.clientX - 25; 
+            p2.y = Math.min(t.clientY - 20, canvas.height); 
+        }
+    }
+}, {passive: false});
+
+canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        let t = e.changedTouches[i];
+        // 手指離開時，釋放飛機的控制權
+        if (t.identifier === p1.touchId) p1.touchId = null;
+        if (t.identifier === p2.touchId) p2.touchId = null;
+    }
+}, {passive: false});
+
+function continueGame() { 
+    initLevel(); 
+    loop(); // 重新啟動迴圈
+}
+
+initLevel(); 
+loop();
 </script>
 </body>
 </html>
