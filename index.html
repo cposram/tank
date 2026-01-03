@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>海陸空大作戰 - 飛機 vs 鯊魚</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: Arial, sans-serif; touch-action: none; }
+        canvas { display: block; background: linear-gradient(#87CEEB 0%, #87CEEB 70%, #1E90FF 70%, #00008B 100%); }
+        #ui { position: absolute; top: 10px; left: 10px; color: white; text-shadow: 2px 2px 4px #000; pointer-events: none; }
+        #msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: gold; font-size: 24px; text-align: center; display: none; background: rgba(0,0,0,0.7); padding: 20px; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div>戰機 1 血量: <span id="p1-hp">100</span> | 戰機 2 血量: <span id="p2-hp">100</span></div>
+    <div>鯊魚 BOSS 血量: <span id="boss-hp">500</span></div>
+    <div>擊毀戰車: <span id="score">0</span> / 5</div>
+</div>
+
+<div id="msg" onclick="location.reload()">遊戲結束！點擊重新開始</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+/** 遊戲設定 **/
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const p1HpDisp = document.getElementById('p1-hp');
+const p2HpDisp = document.getElementById('p2-hp');
+const bossHpDisp = document.getElementById('boss-hp');
+const scoreDisp = document.getElementById('score');
+const msgDisp = document.getElementById('msg');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let gameOver = false;
+let score = 0;
+
+// 實體類別
+class GameObject {
+    constructor(x, y, w, h, color, hp) {
+        this.x = x; this.y = y; this.w = w; this.h = h;
+        this.color = color; this.hp = hp; this.maxHp = hp;
+    }
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.w, this.h);
+        // 簡單血條
+        if (this.hp < this.maxHp) {
+            ctx.fillStyle = 'red';
+            ctx.fillRect(this.x, this.y - 10, this.w, 5);
+            ctx.fillStyle = 'lime';
+            ctx.fillRect(this.x, this.y - 10, this.w * (this.hp / this.maxHp), 5);
+        }
+    }
+}
+
+// 飛機 (玩家)
+class Plane extends GameObject {
+    constructor(x, y, color, id) {
+        super(x, y, 40, 30, color, 100);
+        this.id = id;
+    }
+    update(nx, ny) {
+        this.x = nx - this.w/2;
+        this.y = ny - this.h/2;
+        // 限制在空中區域
+        if (this.y > canvas.height * 0.6) this.y = canvas.height * 0.6;
+    }
+}
+
+// 戰車
+class Tank extends GameObject {
+    constructor(x, y) {
+        super(x, y, 50, 30, '#556B2F', 30);
+        this.speed = 1 + Math.random() * 2;
+    }
+    update() {
+        this.x += this.speed;
+        if (this.x > canvas.width) this.x = -this.w;
+    }
+}
+
+// 鯊魚 (魔王)
+class Shark extends GameObject {
+    constructor() {
+        super(canvas.width/2 - 50, canvas.height - 80, 100, 60, '#708090', 500);
+        this.speed = 2;
+    }
+    update() {
+        this.x += this.speed;
+        if (this.x <= 0 || this.x + this.w >= canvas.width) this.speed *= -1;
+    }
+}
+
+// 子彈
+class Bullet {
+    constructor(x, y, dy, color, power) {
+        this.x = x; this.y = y; this.r = 4; this.dy = dy; this.color = color; this.power = power;
+    }
+    draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+    }
+    update() { this.y += this.dy; }
+}
+
+// 初始化對象
+const p1 = new Plane(100, 100, 'red', 1);
+const p2 = new Plane(200, 100, 'orange', 2);
+const tanks = [];
+for(let i=0; i<5; i++) tanks.push(new Tank(Math.random()*canvas.width, canvas.height * 0.7 - 40));
+const shark = new Shark();
+const bullets = [];
+const enemyBullets = [];
+
+// 觸控控制
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    for (let i = 0; i < e.touches.length; i++) {
+        let t = e.touches[i];
+        if (i === 0) p1.update(t.clientX, t.clientY);
+        if (i === 1) p2.update(t.clientX, t.clientY);
+    }
+}, {passive: false});
+
+// 自動射擊定時器
+setInterval(() => {
+    if (gameOver) return;
+    if (p1.hp > 0) bullets.push(new Bullet(p1.x + 20, p1.y + 30, 7, 'yellow', 10));
+    if (p2.hp > 0) bullets.push(new Bullet(p2.x + 20, p2.y + 30, 7, 'yellow', 10));
+    
+    // 敵人射擊
+    tanks.forEach(t => {
+        if (t.hp > 0 && Math.random() > 0.7) enemyBullets.push(new Bullet(t.x + 25, t.y, -5, 'black', 5));
+    });
+}, 500);
+
+function checkCollision(rect1, rect2) {
+    return rect1.x < rect2.x + rect2.w && rect1.x + rect1.w > rect2.x &&
+           rect1.y < rect2.y + rect2.h && rect1.y + rect1.h > rect2.y;
+}
+
+function update() {
+    if (gameOver) return;
+
+    tanks.forEach(t => t.update());
+    shark.update();
+
+    // 玩家子彈邏輯
+    bullets.forEach((b, bi) => {
+        b.update();
+        // 打戰車
+        tanks.forEach(t => {
+            if (t.hp > 0 && b.x > t.x && b.x < t.x+t.w && b.y > t.y && b.y < t.y+t.h) {
+                t.hp -= b.power;
+                bullets.splice(bi, 1);
+                if (t.hp <= 0) score++;
+            }
+        });
+        // 打鯊魚
+        if (b.x > shark.x && b.x < shark.x+shark.w && b.y > shark.y && b.y < shark.y+shark.h) {
+            shark.hp -= b.power;
+            bullets.splice(bi, 1);
+        }
+    });
+
+    // 敵人子彈邏輯 (打飛機)
+    enemyBullets.forEach((eb, ebi) => {
+        eb.update();
+        [p1, p2].forEach(p => {
+            if (p.hp > 0 && eb.x > p.x && eb.x < p.x+p.w && eb.y > p.y && eb.y < p.y+p.h) {
+                p.hp -= eb.power;
+                enemyBullets.splice(ebi, 1);
+            }
+        });
+    });
+
+    // 更新 UI
+    p1HpDisp.innerText = Math.max(0, p1.hp);
+    p2HpDisp.innerText = Math.max(0, p2.hp);
+    bossHpDisp.innerText = Math.max(0, shark.hp);
+    scoreDisp.innerText = score;
+
+    // 勝利與失敗判定
+    if (shark.hp <= 0) {
+        gameOver = true;
+        msgDisp.style.display = 'block';
+        msgDisp.innerText = "恭喜！鯊魚被擊退了！點擊重玩";
+    }
+    if (p1.hp <= 0 && p2.hp <= 0) {
+        gameOver = true;
+        msgDisp.style.display = 'block';
+        msgDisp.innerText = "戰機全滅！遊戲結束，點擊重玩";
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 繪製背景裝飾 (簡單的海浪線)
+    ctx.strokeStyle = 'white';
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height * 0.7);
+    ctx.lineTo(canvas.width, canvas.height * 0.7);
+    ctx.stroke();
+
+    if (p1.hp > 0) p1.draw();
+    if (p2.hp > 0) p2.draw();
+    tanks.forEach(t => { if(t.hp > 0) t.draw(); });
+    if (shark.hp > 0) shark.draw();
+    bullets.forEach(b => b.draw());
+    enemyBullets.forEach(eb => eb.draw());
+
+    update();
+    requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+</body>
+</html>
