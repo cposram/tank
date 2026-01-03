@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>海陸空大作戰：核平世界版</title>
     <style>
-        /* 禁止選取與長按的最高級別設定 */
+        /* 全局禁止選取與長按，確保沈浸體驗 */
         * {
-            -webkit-touch-callout: none; /* iOS 禁止長按 */
-            -webkit-user-select: none;   /* Chrome/Safari 禁止選取 */
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
             -khtml-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
-            -webkit-tap-highlight-color: transparent; /* 移除點擊高亮 */
+            -webkit-tap-highlight-color: transparent;
         }
 
         body { margin: 0; overflow: hidden; background: #000; font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; touch-action: none; color: white; }
@@ -25,7 +25,7 @@
         .boss-hp-container { width: 80%; height: 15px; background: #222; border: 2px solid gold; margin: 5px auto; position: relative; }
         .boss-hp-fill { height: 100%; width: 100%; background: linear-gradient(to right, #ff0000, #ff8c00); }
         
-        /* 核彈按鈕 */
+        /* 核彈按鈕 (維持您習慣的位置) */
         .nuke-btn { 
             position: absolute; 
             bottom: 150px; 
@@ -51,36 +51,65 @@
 
         #flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; z-index: 1000; }
         
-        /* 彈窗樣式調整：讓兩個按鈕分很開 */
-        #overlay, #award { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 500; text-align: center; }
+        /* 通用彈窗樣式 */
+        .modal { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.9); 
+            display: none; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            z-index: 500; 
+            text-align: center; 
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         
-        /* 專用按鈕樣式 */
-        .btn-continue {
-            padding: 25px 50px; /* 超大按鈕 */
+        /* 按鈕樣式 */
+        .btn-continue, .btn-next-level {
+            padding: 20px 40px;
             font-size: 24px;
-            background: #32CD32; /* 鮮綠色 */
+            background: linear-gradient(to bottom, #32CD32, #228B22);
             color: white;
-            border: 4px solid white;
+            border: 3px solid #fff;
             border-radius: 30px;
             font-weight: bold;
             box-shadow: 0 0 20px #32CD32;
-            margin-bottom: 20px; /* 留點空間 */
+            margin: 20px;
             cursor: pointer;
+            text-shadow: 1px 1px 2px black;
         }
         
         .btn-restart {
-            position: absolute; /* 絕對定位到最下面 */
+            position: absolute; 
             bottom: 30px;
             padding: 10px 20px;
             font-size: 14px;
-            background: #444; /* 暗灰色 */
+            background: #444; 
             color: #aaa;
             border: 1px solid #666;
             border-radius: 10px;
             cursor: pointer;
         }
 
-        h1 { margin-bottom: 30px; text-shadow: 0 0 10px red; }
+        /* 關卡勝利特效文字 */
+        .victory-title {
+            font-size: 45px;
+            color: gold;
+            text-shadow: 0 0 10px orange, 0 0 20px red;
+            margin-bottom: 10px;
+            font-weight: 900;
+            letter-spacing: 2px;
+        }
+        
+        .victory-desc {
+            font-size: 18px;
+            color: #ccc;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+
     </style>
 </head>
 <body oncontextmenu="return false;">
@@ -101,16 +130,23 @@
 <div id="nuke-p1" class="nuke-btn" onclick="useNuke()">☢️<div class="nuke-count" id="nuke-val">3</div></div>
 <div id="nuke-p2" class="nuke-btn" onclick="useNuke()">☢️</div>
 
-<div id="overlay">
-    <h1 style="color: red; font-size: 50px;">💥 戰機墜毀 💥</h1>
-    
+<div id="overlay" class="modal">
+    <h1 style="color: red; font-size: 50px; text-shadow: 0 0 20px red;">💥 戰機墜毀 💥</h1>
     <button class="btn-continue" onclick="continueGame()">🚀 立即接關 (原地復活)</button>
-    
     <button class="btn-restart" onclick="location.reload()">↺ 放棄掙扎，重新開始</button>
 </div>
 
-<div id="award">
-    <h1 style="color:gold; font-size:40px;">🏆 凱旋歸來 🏆</h1>
+<div id="level-clear" class="modal">
+    <div class="victory-title">⚠️ 目標殲滅 ⚠️</div>
+    <div class="victory-desc">
+        核彈洗地完成，威脅已清除。<br>
+        引擎冷卻完畢，準備前往下一戰區！
+    </div>
+    <button class="btn-next-level" onclick="nextLevel()">前進下一關 >></button>
+</div>
+
+<div id="award" class="modal">
+    <h1 style="color:gold; font-size:40px; text-shadow: 0 0 20px gold;">🏆 世界和平 🏆</h1>
     <div id="award-text" style="font-size:18px; margin:20px; line-height:1.6;"></div>
     <button class="btn-continue" onclick="location.reload()">受封為傳奇英雄 (重來)</button>
 </div>
@@ -118,10 +154,8 @@
 <canvas id="gameCanvas"></canvas>
 
 <script>
-// ★★★ 強制禁止瀏覽器選單 (解決點擊變搜尋的問題) ★★★
-window.addEventListener('contextmenu', function (e) { 
-    e.preventDefault(); 
-}, { passive: false });
+// 禁止選單
+window.addEventListener('contextmenu', function (e) { e.preventDefault(); }, { passive: false });
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -139,6 +173,7 @@ const levelData = [
 let currentLevel = 0;
 let gameOver = false;
 let gameWin = false;
+let isPaused = false; // 新增暫停狀態，讓過關畫面出現時遊戲暫停
 let nukeCount = 3;
 let screenShake = 0;
 
@@ -215,7 +250,10 @@ class Boss {
 
 function initLevel() {
     gameOver = false;
+    isPaused = false;
     document.getElementById('overlay').style.display = 'none';
+    document.getElementById('level-clear').style.display = 'none'; // 隱藏過關視窗
+    
     const config = levelData[currentLevel];
     document.getElementById('level-name').innerText = config.name;
     boss = new Boss(config);
@@ -224,7 +262,7 @@ function initLevel() {
 }
 
 function useNuke() {
-    if (nukeCount <= 0 || gameOver || gameWin) return;
+    if (nukeCount <= 0 || gameOver || gameWin || isPaused) return;
     
     nukeCount--;
     document.getElementById('nuke-val').innerText = nukeCount;
@@ -238,12 +276,14 @@ function useNuke() {
     if (boss.hp < 0) boss.hp = 0;
 }
 
+// 掉落物
 setInterval(() => {
-    if (!gameOver && !gameWin) items.push(new Item());
+    if (!gameOver && !gameWin && !isPaused) items.push(new Item());
 }, 4500);
 
+// 自動射擊
 setInterval(() => {
-    if (gameOver || gameWin) return;
+    if (gameOver || gameWin || isPaused) return;
     [p1, p2].forEach(p => {
         if (p.hp > 0) {
             if (p.weaponLevel === 3) {
@@ -258,7 +298,10 @@ setInterval(() => {
 }, 300);
 
 function loop() {
-    if (gameOver || gameWin) return;
+    if (gameOver || gameWin || isPaused) {
+        requestAnimationFrame(loop); // 保持循環但不更新邏輯，以便恢復
+        return;
+    }
     
     let offsetX = 0, offsetY = 0;
     if (screenShake > 0) {
@@ -314,8 +357,13 @@ function loop() {
     document.getElementById('p2-hp').style.width = p2.hp + "%";
     document.getElementById('boss-hp').style.width = (boss.hp / boss.maxHp * 100) + "%";
 
+    // 勝利判斷與邏輯
     if (boss.hp <= 0) {
-        if (currentLevel < 4) { currentLevel++; alert("核彈洗地！目標摧毀，前往下一關！"); initLevel(); } 
+        if (currentLevel < 4) { 
+            // 這裡不再用 alert，改成顯示「過關視窗」並暫停遊戲
+            isPaused = true;
+            document.getElementById('level-clear').style.display = 'flex';
+        } 
         else { showAward(); }
     }
     if (p1.hp <= 0 && p2.hp <= 0) { gameOver = true; document.getElementById('overlay').style.display = 'flex'; }
@@ -323,6 +371,12 @@ function loop() {
     [p1, p2].forEach(p => { if(p.buffTimer > 0) { p.buffTimer--; if(p.buffTimer <= 0) p.weaponLevel = 1; } });
 
     requestAnimationFrame(loop);
+}
+
+// 切換下一關的函數
+function nextLevel() {
+    currentLevel++;
+    initLevel(); // 這會把 isPaused 設回 false
 }
 
 function showAward() {
